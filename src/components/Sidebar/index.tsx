@@ -1,11 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import SidebarLinkGroup from './SidebarLinkGroup';
-import { AiOutlineUserAdd } from "react-icons/ai";
-import { PiUserListLight } from "react-icons/pi";
-import { LuClipboardList } from "react-icons/lu";
-import { SiBackendless } from "react-icons/si";
-const Sidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boolean, setSidebarOpen: any }) => {
+import { AiOutlineUserAdd } from 'react-icons/ai';
+import { PiUserListLight } from 'react-icons/pi';
+import { LuClipboardList } from 'react-icons/lu';
+import { SiBackendless } from 'react-icons/si';
+import { MdBlock } from 'react-icons/md';
+import LogoIcon from '../../images/logo/logo.png';
+
+const Sidebar = ({
+  sidebarOpen,
+  setSidebarOpen,
+}: {
+  sidebarOpen: boolean;
+  setSidebarOpen: any;
+}) => {
   const location = useLocation();
   const { pathname } = location;
 
@@ -14,12 +23,12 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boolean, setSid
 
   const storedSidebarExpanded = localStorage.getItem('sidebar-expanded');
   const [sidebarExpanded, setSidebarExpanded] = useState(
-    storedSidebarExpanded === null ? false : storedSidebarExpanded === 'true'
+    storedSidebarExpanded === null ? false : storedSidebarExpanded === 'true',
   );
 
   // close on click outside
   useEffect(() => {
-    const clickHandler = ({ target } :{ target: any } ) => {
+    const clickHandler = ({ target }: { target: any }) => {
       if (!sidebar.current || !trigger.current) return;
       if (
         !sidebarOpen ||
@@ -53,7 +62,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boolean, setSid
       {/* <!-- SIDEBAR HEADER --> */}
       <div className="flex items-center justify-between gap-2 px-6 py-5.5 lg:py-6.5">
         <NavLink to="/">
-          <img src={""} alt="Logo" />
+          <img src={LogoIcon} alt="Logo" className="h-15 w-15" />
         </NavLink>
 
         <button
@@ -85,8 +94,6 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boolean, setSid
         <nav className="mt-5 py-4 px-4 lg:mt-9 lg:px-6">
           {/* <!-- Menu Group --> */}
           <div>
-            
-
             <ul className="mb-6 flex flex-col gap-1.5">
               {/* <SidebarLinkGroup
                 activeCondition={
@@ -182,10 +189,11 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boolean, setSid
                 <NavLink
                   to="/dashboard"
                   className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
-                    pathname.includes('/dashboard') && 'bg-graydark dark:bg-meta-4'
+                    pathname.includes('/dashboard') &&
+                    'bg-graydark dark:bg-meta-4'
                   }`}
                 >
-               <LuClipboardList/>
+                  <LuClipboardList />
                   Dashboard
                 </NavLink>
               </li>
@@ -193,24 +201,23 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boolean, setSid
               {/* <!-- Menu Item Dashboard --> */}
 
               {/* <!-- Menu Item Calendar --> */}
-             
+
               {/* <!-- Menu Item Calendar --> */}
 
               {/* <!-- Menu Item Profile --> */}
-             
+
               {/* <!-- Menu Item Profile --> */}
 
               {/* <!-- Menu Item Forms --> */}
-              
+
               <li>
                 <NavLink
                   to="/adduser"
                   className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
-                    pathname.includes('adduser') &&
-                    'bg-graydark dark:bg-meta-4'
+                    pathname.includes('adduser') && 'bg-graydark dark:bg-meta-4'
                   }`}
                 >
-                 <AiOutlineUserAdd/>
+                  <AiOutlineUserAdd />
                   Add User
                 </NavLink>
               </li>
@@ -223,7 +230,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boolean, setSid
                     pathname.includes('tables') && 'bg-graydark dark:bg-meta-4'
                   }`}
                 >
-               <PiUserListLight/>
+                  <PiUserListLight />
                   Users List
                 </NavLink>
               </li>
@@ -231,10 +238,11 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boolean, setSid
                 <NavLink
                   to="/adminchat"
                   className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
-                    pathname.includes('adminchat') && 'bg-graydark dark:bg-meta-4'
+                    pathname.includes('adminchat') &&
+                    'bg-graydark dark:bg-meta-4'
                   }`}
                 >
-               <PiUserListLight/>
+                  <PiUserListLight />
                   Chat
                 </NavLink>
               </li>
@@ -245,22 +253,32 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boolean, setSid
                     pathname.includes('backup') && 'bg-graydark dark:bg-meta-4'
                   }`}
                 >
-               <SiBackendless/>
+                  <SiBackendless />
                   Backup Data
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="/block-ip"
+                  className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
+                    pathname.includes('block-ip') &&
+                    'bg-graydark dark:bg-meta-4'
+                  }`}
+                >
+                  <MdBlock size={18} />
+                  Block IP
                 </NavLink>
               </li>
               {/* <!-- Menu Item Tables --> */}
 
               {/* <!-- Menu Item Settings --> */}
-             
+
               {/* <!-- Menu Item Settings --> */}
             </ul>
           </div>
 
           {/* <!-- Others Group --> */}
-          <div>
-           
-          </div>
+          <div></div>
         </nav>
         {/* <!-- Sidebar Menu --> */}
       </div>

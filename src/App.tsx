@@ -10,6 +10,7 @@ import SingleUser from './pages/singleUserNote';
 import Adduser from './pages/adduser';
 import Dashboard from './pages/Dashboard/Dashboard';
 import BackupData from './pages/Backup.tsx';
+import BlockIP from './pages/BlockIP.tsx';
 import Chat from './components/Chat/Chat.tsx';
 import AdminChat from './components/Chat/AdminChat.tsx';
 function App() {
@@ -53,7 +54,7 @@ function App() {
           element={
             islogin ? (
               <>
-                <PageTitle title="DashBoard | Notepad - Create, Edit, Update & Delete Notes" />
+                <PageTitle title="DashBoard | Notepad - Manage User, See Chats and Toggle Security " />
                 {/* <Tables /> */}
                 <Dashboard />
               </>
@@ -67,7 +68,7 @@ function App() {
           path="/tables"
           element={
             <>
-              <PageTitle title="Tables | Notepad - Create, Edit, Update & Delete Notes" />
+              <PageTitle title="Tables | Notepad - Manage User, See Chats and Toggle Security " />
               <Tables />
             </>
           }
@@ -76,7 +77,7 @@ function App() {
           path="/adduser"
           element={
             <>
-              <PageTitle title="Add User | Notepad - Create, Edit, Update & Delete Notes" />
+              <PageTitle title="Add User | Notepad - Manage User, See Chats and Toggle Security " />
               <Adduser />
             </>
           }
@@ -85,7 +86,7 @@ function App() {
           path="/adminchat"
           element={
             <>
-              <PageTitle title="Admin Chat | Notepad - Create, Edit, Update & Delete Notes" />
+              <PageTitle title="Admin Chat | Notepad - Manage User, See Chats and Toggle Security " />
               <AdminChat />
             </>
           }
@@ -95,7 +96,7 @@ function App() {
           element={
             !islogin ? (
               <>
-                <PageTitle title="Signin | Notepad - Create, Edit, Update & Delete Notes" />
+                <PageTitle title="Signin | Notepad - Manage User, See Chats and Toggle Security " />
                 <SignIn />
               </>
             ) : (
@@ -107,7 +108,7 @@ function App() {
           path="/auth/signup"
           element={
             <>
-              <PageTitle title="Signup | Notepad - Create, Edit, Update & Delete Notes" />
+              <PageTitle title="Signup | Notepad - Manage User, See Chats and Toggle Security " />
               <SignUp />
             </>
           }
@@ -116,7 +117,7 @@ function App() {
           path="/chat/:id/:name"
           element={
             <>
-              <PageTitle title="Chat | Notepad - Create, Edit, Update & Delete Notes" />
+              <PageTitle title="Chat | Notepad - Manage User, See Chats and Toggle Security " />
               <Chat />
             </>
           }
@@ -125,8 +126,17 @@ function App() {
           path="/backup"
           element={
             <>
-              <PageTitle title="Backup | Notepad - Create, Edit, Update & Delete Notes" />
+              <PageTitle title="Backup | Notepad - Manage User, See Chats and Toggle Security " />
               <BackupData />
+            </>
+          }
+        />
+        <Route
+          path="/block-ip"
+          element={
+            <>
+              <PageTitle title="Block IP | Notepad Admin" />
+              <BlockIP />
             </>
           }
         />

@@ -2,6 +2,7 @@ import axios from 'axios';
 
 export const apiUrl = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
+  timeout: 15000,
 });
 
 // Automatically add the Authorization header if a token exists
