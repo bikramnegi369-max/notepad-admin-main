@@ -1,12 +1,22 @@
-import { io } from "socket.io-client";
+import { io, Socket } from 'socket.io-client';
 
-// const URL = "https://ns8qgl50-4444.inc1.devtunnels.ms";
-const URL = "https://notepad-backend-f10dee9eba58.herokuapp.com";
-const socket = io(URL, { autoConnect: false });
+// Define custom properties for the Socket instance
+export interface CustomSocket extends Socket {
+  auth?: { sessionID?: string; username?: string; userId?: string };
+  userID?: string;
+}
 
+const URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-socket.onAny((event, ...args) => {
-  console.log(event, args);
+// Cast the socket to our custom interface
+const socket: CustomSocket = io(URL, {
+  autoConnect: false,
+  reconnectionAttempts: 5,
+  timeout: 10000,
 });
+
+if (import.meta.env.DEV) {
+  socket.onAny((event, ...args) => console.log(event, args));
+}
 
 export default socket;

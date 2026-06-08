@@ -1,76 +1,111 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import DefaultLayout from '../layout/DefaultLayout';
 import { useDispatch, useSelector } from 'react-redux';
 import { getNotesByUser } from '../redux/userSlice';
+import { AppDispatch } from '../redux/store';
 import { useEffect, useState } from 'react';
 import Breadcrumb from '../components/Breadcrumbs/Breadcrumb';
 import dateFormat from 'dateformat';
 import { AiOutlineClose } from 'react-icons/ai';
 import { MdContentCopy } from 'react-icons/md';
 import { toast } from 'react-toastify';
+import { LuClipboardList } from 'react-icons/lu';
+import { IoArrowBack } from 'react-icons/io5';
+
 export default function SingleUser() {
+  const navigate = useNavigate();
   const { id } = useParams();
-  const dispatch = useDispatch();
-  const userNoteGet = useSelector((state: any) => state.user.singleNote.data);
+  const dispatch = useDispatch<AppDispatch>();
+
+  const { singleNote, isLoading } = useSelector((state: any) => state.user);
+
+  const userNoteGet = Array.isArray(singleNote)
+    ? singleNote
+    : singleNote?.data || [];
 
   useEffect(() => {
-    dispatch(getNotesByUser(id as any) as any);
+    if (id) {
+      dispatch(getNotesByUser(id));
+    }
   }, [dispatch, id]);
+
   return (
     <>
       <DefaultLayout>
-        <Breadcrumb pageName="User Notes" />
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <Breadcrumb pageName="User Notes" />
+          <button
+            onClick={() => navigate('/tables')}
+            className="inline-flex items-center justify-center gap-2.5 rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90 transition-all active:scale-95 shadow-md self-start sm:self-auto"
+          >
+            <IoArrowBack size={18} />
+            <span>Back to Users</span>
+          </button>
+        </div>
 
-        <div className="relative overflow-x-auto p-4 bg-white">
-          <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400  ">
-            <thead className="text-xs text-gray-700 h-[50px]  uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 bg-gray-2 dark:bg-meta-4 ">
-              <tr className="mt-4">
-                <th
-                  scope="col"
-                  className="text-sm font-medium uppercase xsm:text-base pl-4"
-                >
-                  S.no
-                </th>
-
-                <th
-                  scope="col"
-                  className="text-sm font-medium uppercase xsm:text-base pl-4"
-                >
-                  content
-                </th>
-                <th
-                  scope="col"
-                  className="text-sm font-medium uppercase xsm:text-base pl-4"
-                >
-                  created Date
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {userNoteGet?.map((user: any, key: any) => (
-                <tr className="bg-white dark:bg-gray-800">
-                  <th
-                    scope="row"
-                    className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white"
-                  >
-                    {key + 1}
-                  </th>
-
-                  <td className="px-6 py-4">
-                    <ViewNotes content={user?.content} />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-black dark:text-white">
-                      {dateFormat(user?.createdAt, 'mmm d, yyyy')}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {dateFormat(user?.createdAt, 'h:MM TT')}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+          <div className="max-w-full overflow-x-auto">
+            {isLoading ? (
+              <div className="flex h-60 items-center justify-center">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
+              </div>
+            ) : userNoteGet.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
+                <div className="mb-4 text-gray-400">
+                  <LuClipboardList size={60} className="mx-auto opacity-20" />
+                </div>
+                <p className="text-xl font-semibold text-black dark:text-white">
+                  No notes found for this user.
+                </p>
+                <p className="text-sm text-gray-500">
+                  When the user creates notes, they will appear here.
+                </p>
+              </div>
+            ) : (
+              <table className="w-full table-auto">
+                <thead>
+                  <tr className="bg-gray-2 dark:bg-meta-4">
+                    <th className="py-4 px-4 text-center font-semibold text-black dark:text-white text-xs uppercase tracking-wider">
+                      S.No
+                    </th>
+                    <th className="py-4 px-4 text-left font-semibold text-black dark:text-white text-xs uppercase tracking-wider">
+                      Note Content
+                    </th>
+                    <th className="py-4 px-4 text-center font-semibold text-black dark:text-white text-xs uppercase tracking-wider">
+                      Created Date
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userNoteGet.map((note: any, index: number) => (
+                    <tr
+                      key={note?._id || index}
+                      className="border-b border-stroke dark:border-strokedark hover:bg-gray-50 dark:hover:bg-meta-4/20 transition-colors"
+                    >
+                      <td className="py-6 px-4 text-center">
+                        <p className="text-sm font-medium text-black dark:text-white">
+                          {index + 1}
+                        </p>
+                      </td>
+                      <td className="py-6 px-4 text-center align-middle">
+                        <ViewNotes content={note?.content} />
+                      </td>
+                      <td className="py-6 px-4 whitespace-nowrap text-center align-middle">
+                        <div className="flex flex-col items-center justify-center">
+                          <span className="text-sm font-semibold text-black dark:text-white">
+                            {dateFormat(note?.createdAt, 'mmm d, yyyy')}
+                          </span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                            {dateFormat(note?.createdAt, 'h:MM TT')}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       </DefaultLayout>
     </>
@@ -81,38 +116,49 @@ const ViewNotes = ({ content }: { content: string }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(content);
+    window.navigator.clipboard.writeText(content || '');
     toast.success('Content copied to clipboard');
   };
 
+  const safeContent = content || '';
+
   return (
     <>
-      <p
-        className="cursor-pointer text-blue-500 hover:underline line-clamp-2 max-w-xs"
+      <div
+        className="group cursor-pointer max-w-xs transition-transform active:scale-[0.98]"
         onClick={() => setIsOpen(true)}
       >
-        {content.length > 100 ? content.slice(0, 100) + '...' : content}
-      </p>
+        <p className="text-sm text-black dark:text-white line-clamp-2 group-hover:text-primary transition-colors leading-relaxed">
+          {safeContent || (
+            <span className="text-gray-400 italic">No content</span>
+          )}
+        </p>
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+          Click to View
+        </p>
+      </div>
 
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-boxdark rounded-lg shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh] overflow-hidden">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-opacity duration-300">
+          <div className="bg-white dark:bg-boxdark rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] overflow-hidden transition-all duration-300 scale-100">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-stroke dark:border-strokedark px-6 py-4">
-              <h3 className="font-semibold text-black dark:text-white text-lg">
+              <h3 className="text-xl font-bold text-black dark:text-white">
                 Note Detail
               </h3>
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleCopy}
-                  className="p-2 text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-meta-4 rounded-full transition-colors"
+                  className="p-2.5 text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-meta-4 rounded-full transition-all active:scale-90"
                   title="Copy to clipboard"
+                  aria-label="Copy note"
                 >
                   <MdContentCopy size={20} />
                 </button>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-2 text-gray-500 hover:text-danger hover:bg-gray-100 dark:hover:bg-meta-4 rounded-full transition-colors"
+                  className="p-2.5 text-gray-500 hover:text-danger hover:bg-gray-100 dark:hover:bg-meta-4 rounded-full transition-all active:scale-90"
+                  aria-label="Close modal"
                 >
                   <AiOutlineClose size={22} />
                 </button>
@@ -121,8 +167,8 @@ const ViewNotes = ({ content }: { content: string }) => {
 
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto">
-              <div className="text-base text-black dark:text-white font-mono whitespace-pre-wrap break-words leading-relaxed bg-gray-50 dark:bg-meta-4 p-4 rounded-md border border-stroke dark:border-strokedark">
-                {content}
+              <div className="text-sm md:text-base text-black dark:text-white font-mono whitespace-pre-wrap break-words leading-relaxed bg-gray-50 dark:bg-meta-4 p-6 rounded-lg border border-stroke dark:border-strokedark shadow-inner">
+                {safeContent}
               </div>
             </div>
           </div>

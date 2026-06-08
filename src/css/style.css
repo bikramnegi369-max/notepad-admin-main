@@ -6,12 +6,45 @@
   body {
     @apply font-satoshi font-normal text-base text-body bg-whiten relative z-1;
   }
+
+  /* Custom Themed Scrollbar - Global */
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    @apply bg-stroke dark:bg-strokedark rounded-full;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    @apply bg-bodydark1 dark:bg-meta-4;
+  }
+
+  /* Firefox Support */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent; /* Light Mode: stroke color */
+  }
+
+  .dark * {
+    scrollbar-color: #2e3a47 transparent; /* Dark Mode: strokedark color */
+  }
 }
 
 @layer components {
 }
 
 @layer utilities {
+  /* Specific utility for Chat Containers to ensure a slim look */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+  }
+
   /* Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -117,7 +150,9 @@ span.flatpickr-weekday,
 }
 .flatpickr-day.inRange {
   @apply dark:!shadow-7;
-  box-shadow: -5px 0 0 #EFF4FB, 5px 0 0 #EFF4FB;
+  box-shadow:
+    -5px 0 0 #eff4fb,
+    5px 0 0 #eff4fb;
 }
 .flatpickr-day.inRange,
 .flatpickr-day.prevMonthDay.inRange,
@@ -213,11 +248,6 @@ span.flatpickr-weekday,
 [x-cloak] {
   display: none !important;
 }
-
-
-
-
-
 
 .sn-width {
   width: 60px !important;
