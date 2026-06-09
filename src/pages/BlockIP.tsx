@@ -95,7 +95,7 @@ const BlockIP = () => {
               />
             </div>
             <button className="flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90 xl:w-auto xl:px-10">
-              Block IP
+              Add IP
             </button>
           </form>
         </div>
