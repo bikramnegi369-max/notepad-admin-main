@@ -35,8 +35,7 @@ interface ChatMessage {
 
 export default function Chat() {
   const { id, name } = useParams();
-  const currentAdminId = localStorage.getItem('adminID');
-  const currentAdminName = localStorage.getItem('adminName');
+  const [adminId] = useState(() => localStorage.getItem('adminID'));
 
   const [userId, setUserId] = useState<{ sender: string } | null>(null);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -111,7 +110,7 @@ export default function Chat() {
 
       // Optimistic update for UI responsiveness
       const localMsg: ChatMessage = {
-        sender: currentAdminId!, // Use currentAdminId
+        sender: adminId!,
         to: userId.sender,
         message: trimmedMessage,
         timestamp: new Date().toISOString(),
@@ -126,7 +125,7 @@ export default function Chat() {
     } catch (error) {
       toast.error('Failed to send message.');
     }
-  }, [message, selectedFile, filePath, userId]); // adminId is not a direct dependency of the callback itself, but its value is read inside.
+  }, [message, selectedFile, filePath, userId, adminId]);
 
   const handleId = useCallback((id: string) => {
     const selected = { sender: id };
@@ -144,18 +143,18 @@ export default function Chat() {
   }, [id, handleId]);
 
   const initSocketConnection = useCallback(() => {
-    const currentAdminId = localStorage.getItem('adminID');
-    const currentAdminName = localStorage.getItem('adminName');
+    const storedId = localStorage.getItem('adminID');
+    const storedName = localStorage.getItem('adminName');
 
     if (
-      !currentAdminId ||
-      !currentAdminName ||
-      currentAdminId === 'null' ||
-      currentAdminName === 'null'
+      !storedId ||
+      storedId === 'null' ||
+      !storedName ||
+      storedName === 'null'
     ) {
-      console.warn('Admin credentials missing. Socket connection aborted.');
       return;
     }
+
     const currentSocket = socket as CustomSocket;
     if (currentSocket.connected) currentSocket.disconnect();
 
@@ -163,7 +162,7 @@ export default function Chat() {
 
     currentSocket.auth = sessionID
       ? { sessionID }
-      : { username: currentAdminName, userId: currentAdminId };
+      : { username: storedName, userId: storedId };
 
     currentSocket.connect();
 
@@ -174,10 +173,7 @@ export default function Chat() {
     currentSocket.on('private message', (data: ChatMessage) => {
       const activeId = activeUserIdRef.current;
       // Only handle messages FROM the other user (sent messages are handled by optimistic update) or messages to us
-      if (
-        activeId &&
-        (data.sender === activeId || data.to === currentAdminId)
-      ) {
+      if (activeId && (data.sender === activeId || data.to === storedId)) {
         setUserChats((prevChats) => [...prevChats, data]);
       }
 
@@ -207,6 +203,7 @@ export default function Chat() {
         const id = localStorage.getItem('adminID');
         if (name && id) {
           currentSocket.auth = { username: name, userId: id };
+          currentSocket.connect(); // Force reconnection
         }
       }
     });
@@ -338,14 +335,14 @@ export default function Chat() {
                         key={chat._id || chat.timestamp}
                         className={`flex ${
                           // Use currentAdminId for comparison
-                          chat.sender === currentAdminId
+                          chat.sender === adminId
                             ? 'justify-end'
                             : 'justify-start'
                         }`}
                       >
                         <div
                           className={`max-w-[70%] rounded-2xl px-4 py-2 shadow-sm ${
-                            chat.sender === currentAdminId
+                            chat.sender === adminId
                               ? 'bg-primary text-white rounded-tr-none'
                               : 'bg-gray-2 dark:bg-meta-4 text-black dark:text-white rounded-tl-none'
                           }`}

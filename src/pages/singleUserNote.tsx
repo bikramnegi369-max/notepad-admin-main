@@ -69,6 +69,9 @@ export default function SingleUser() {
                       S.No
                     </th>
                     <th className="py-4 px-4 text-left font-semibold text-black dark:text-white text-xs uppercase tracking-wider">
+                      Title
+                    </th>
+                    <th className="py-4 px-4 text-left font-semibold text-black dark:text-white text-xs uppercase tracking-wider">
                       Note Content
                     </th>
                     <th className="py-4 px-4 text-center font-semibold text-black dark:text-white text-xs uppercase tracking-wider">
@@ -85,6 +88,11 @@ export default function SingleUser() {
                       <td className="py-6 px-4 text-center">
                         <p className="text-sm font-medium text-black dark:text-white">
                           {index + 1}
+                        </p>
+                      </td>
+                      <td className="py-6 px-4 text-left align-middle">
+                        <p className="text-sm font-medium text-black dark:text-white">
+                          {note?.title || <span className="text-gray-400 italic">Untitled</span>}
                         </p>
                       </td>
                       <td className="py-6 px-4 text-center align-middle">

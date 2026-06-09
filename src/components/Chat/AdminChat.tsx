@@ -32,8 +32,9 @@ interface ChatMessage {
 }
 
 export default function AdminChat() {
-  const currentAdminId = localStorage.getItem('adminID');
-  const currentAdminName = localStorage.getItem('adminName');
+  // Use state to track admin credentials and ensure they are fresh
+  const [adminId] = useState(() => localStorage.getItem('adminID'));
+
   const [userId, setUserId] = useState<{ sender: string } | null>(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [formdataValue, setFormdataValue] = useState(false);
@@ -108,7 +109,7 @@ export default function AdminChat() {
 
       // Optimistic update
       const localMsg: ChatMessage = {
-        sender: currentAdminId || 'me', // Use currentAdminId
+        sender: adminId || 'me',
         to: userId.sender,
         message: trimmedMessage,
         timestamp: new Date().toISOString(),
@@ -124,7 +125,7 @@ export default function AdminChat() {
       toast.error('Failed to send message.');
       console.error('Error sending message:', error);
     }
-  }, [message, selectedFile, filePath, userId]); // adminId is not a direct dependency of the callback itself, but its value is read inside.
+  }, [message, selectedFile, filePath, userId, adminId]);
 
   const handleId = useCallback(
     (id: string) => {
@@ -142,50 +143,44 @@ export default function AdminChat() {
   );
 
   const initSocketConnection = useCallback(() => {
-    const currentAdminId = localStorage.getItem('adminID');
-    const currentAdminName = localStorage.getItem('adminName');
+    // Robust check for credentials (handling null and string "null")
+    const storedId = localStorage.getItem('adminID');
+    const storedName = localStorage.getItem('adminName');
 
-    if (!currentAdminId || !currentAdminName || currentAdminId === 'null') {
-      console.error(
-        'Admin credentials missing. Redirecting to login or preventing connection.',
+    if (
+      !storedId ||
+      storedId === 'null' ||
+      !storedName ||
+      storedName === 'null'
+    ) {
+      console.warn(
+        'Socket connection aborted: Missing or invalid credentials.',
       );
-      toast.error('Admin credentials missing. Please log in.');
       return;
     }
+
     const currentSocket = socket as CustomSocket; // Cast to CustomSocket
 
-    // Important: Disconnect before changing auth to avoid "invalid username" cache
     if (currentSocket.connected) currentSocket.disconnect();
 
     const sessionID = localStorage.getItem('sessionID');
-
-    // Set initial auth. If session exists, try it; otherwise use credentials.
     currentSocket.auth = sessionID
       ? { sessionID }
-      : { username: currentAdminName, userId: currentAdminId };
+      : { username: storedName, userId: storedId };
 
     currentSocket.connect();
 
-    currentSocket.on('messages', (data: ChatMessage[]) => {
-      setUserChats(data);
-    });
+    currentSocket.on('messages', (data: ChatMessage[]) => setUserChats(data));
 
     currentSocket.on('private message', (data: ChatMessage) => {
       const activeId = activeUserIdRef.current;
       // Only add message if it's for the currently active chat or from the active user
-      // For AdminChat, we want to see messages from the active user and our own sent messages.
-      // Optimistic update handles our own messages, so this should primarily catch incoming.
-      if (
-        activeId &&
-        (data.sender === activeId || data.to === currentAdminId)
-      ) {
-        // Check if message is for us
+      if (activeId && (data.sender === activeId || data.to === storedId)) {
         setUserChats((prevChats) => {
-          // Use currentAdminId
           return [...prevChats, data];
         });
       }
-      // Also update new message count for the sender in the user list
+      // Update new message count for the sender in the user list
       setUsers((prevUsers) =>
         prevUsers.map((user) =>
           user._id === data.sender && user._id !== activeId
@@ -212,6 +207,7 @@ export default function AdminChat() {
         const id = localStorage.getItem('adminID');
         if (name && id) {
           currentSocket.auth = { username: name, userId: id };
+          currentSocket.connect(); // Force reconnection with fresh credentials
         }
       }
     });
@@ -232,18 +228,22 @@ export default function AdminChat() {
         return updatedUsers;
       });
     });
+
+    // Return cleanup function
+    return () => {
+      currentSocket.off('messages');
+      currentSocket.off('private message');
+      currentSocket.off('session');
+      currentSocket.off('connect_error');
+      currentSocket.off('users');
+      currentSocket.disconnect();
+    };
   }, []);
 
   useEffect(() => {
-    initSocketConnection();
-
+    const cleanup = initSocketConnection();
     return () => {
-      socket.off('messages');
-      socket.off('private message');
-      socket.off('session');
-      socket.off('connect_error');
-      socket.off('users');
-      socket.disconnect();
+      if (cleanup) cleanup();
     };
   }, [initSocketConnection]);
 
@@ -340,17 +340,17 @@ export default function AdminChat() {
                         {date}
                       </span>
                     </div>
-                    {groupedMessages[date].map((chat: any) => (
+                    {groupedMessages[date].map((chat: ChatMessage) => (
                       <div
                         key={chat._id || `${chat.sender}-${chat.timestamp}`} // Fallback key for unsent messages
                         className={`flex ${
                           // Use currentAdminId for comparison
-                          chat.sender === currentAdminId // Check if the message was sent by the current admin
+                          chat.sender === adminId // Check if the message was sent by the current admin
                             ? 'justify-end'
                             : 'justify-start'
                         }`}
                       >
-                        {chat.sender !== currentAdminId && ( // Display avatar for received messages
+                        {chat.sender !== adminId && ( // Display avatar for received messages
                           <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold mr-2 flex-shrink-0">
                             {users
                               .find((u) => u._id === chat.sender)
@@ -360,7 +360,7 @@ export default function AdminChat() {
                         )}
                         <div
                           className={`max-w-[80%] md:max-w-[70%] rounded-2xl px-4 py-2 shadow-sm animate-fade-in-up ${
-                            chat.sender === currentAdminId
+                            chat.sender === adminId
                               ? 'bg-primary text-white rounded-br-none' // Admin's message
                               : 'bg-gray-2 dark:bg-meta-4 text-black dark:text-white rounded-bl-none' // User's message
                           }`}
