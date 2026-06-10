@@ -1,83 +1,79 @@
 import { BsFillSendFill } from 'react-icons/bs';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { FaFileAlt } from 'react-icons/fa';
 import { IoIosAttach } from 'react-icons/io';
-import socket, { CustomSocket } from '../../socket'; // Import CustomSocket type
+import socket, { CustomSocket } from '../../socket';
 import dateFormat from 'dateformat';
-import { IoClose, IoArrowBack } from 'react-icons/io5';
-import { AiOutlineFilePdf } from 'react-icons/ai';
+import { IoArrowBack } from 'react-icons/io5';
 import DefaultLayout from '../../layout/DefaultLayout';
 import Breadcrumb from '../Breadcrumbs/Breadcrumb';
 import User from './User';
 import { toast } from 'react-toastify';
+import { AttachmentBubble } from './AttachmentBubble';
+import { AttachmentTray } from './AttachmentTray';
 
 // Define types for better clarity and type safety
 interface ChatUser {
-  _id: string; // User ID from database
+  id: string;
   name: string;
-  userID: string; // Socket.io user ID
-  self: boolean;
-  connected: boolean; // Online status
+  lastMessage?: string;
+  updatedAt?: string;
   newMessages: number;
+  isOnline: boolean;
+  typing?: boolean;
 }
 
 interface ChatMessage {
-  _id?: string; // Optional, might not exist for unsent messages
-  sender: string; // User ID of the sender (adminId or userId.sender)
-  to: string; // User ID of the receiver
+  _id?: string;
+  from: string;
+  to: string;
+  sender: string; // This should ideally be the ID, not name, for consistency with 'from'
   message: string;
-  timestamp: string; // ISO string or similar
-  attachment?: string; // URL to attachment
-  filePath?: string; // Original file name
+  attachment?: string;
+  attachmentName?: string;
+  createdAt: string;
 }
 
 export default function AdminChat() {
-  // Use state to track admin credentials and ensure they are fresh
   const [adminId] = useState(() => localStorage.getItem('adminID'));
+  const [adminName] = useState(() => localStorage.getItem('adminName'));
 
   const [userId, setUserId] = useState<{ sender: string } | null>(null);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [formdataValue, setFormdataValue] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [message, setMessages] = useState('');
   const [userChats, setUserChats] = useState<ChatMessage[]>([]);
-  const [users, setUsers] = useState<ChatUser[]>([]); // Use ChatUser type
+  const [users, setUsers] = useState<ChatUser[]>([]);
 
-  // Using useRef for activeUserId to avoid re-renders when it changes, but still accessible in effects
+  // Timer to clear typing status
+  const typingTimers = useRef<{ [key: string]: NodeJS.Timeout }>({});
+
   const activeUserIdRef = useRef<string | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const [filePath, setFilePath] = useState(null);
-  const [filePreview, setFilePreview] = useState('');
-  const handleFileChange = (event: any) => {
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setFilePath(file.name);
+      // Add size validation
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('File size exceeds 10MB limit.');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
       setSelectedFile(file);
       setFilePreview(URL.createObjectURL(file));
-      setFormdataValue(true);
     }
-  };
-
-  const handleClick = (pdfUrl: any) => {
-    window.open(
-      `${import.meta.env.VITE_API_URL}/public/attachments/${pdfUrl}`,
-      '_blank',
-    );
-  };
-
-  // Helper function to convert File to Base64
-  const fileToBase64 = (file: File): Promise<string | ArrayBuffer | null> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onerror = (error) => reject(error);
-      reader.onload = () => resolve(reader.result);
-    });
+    // reset so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleMessage = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      // Corrected type to HTMLTextAreaElement
       setMessages(e.target.value);
+
+      if (userId?.sender) {
+        socket.emit('typing', { to: userId.sender });
+      }
     },
     [],
   );
@@ -88,64 +84,86 @@ export default function AdminChat() {
       return;
     }
     const trimmedMessage = message.trim();
-    if (!trimmedMessage && !selectedFile) {
-      return;
-    }
+    if (!trimmedMessage && !selectedFile) return;
+
+    // Capture before clearing state
+    const fileSnap = selectedFile;
+    const previewSnap = filePreview;
+
+    setMessages('');
+    setFilePreview(null);
+    setSelectedFile(null);
 
     try {
-      let fileContentBase64: string | ArrayBuffer | null = null;
-      if (selectedFile) {
-        fileContentBase64 = await fileToBase64(selectedFile);
+      let fileData: { name: string; type: string; data: string } | null = null;
+      if (fileSnap) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () =>
+            resolve((reader.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(fileSnap);
+        });
+        fileData = { name: fileSnap.name, type: fileSnap.type, data: base64 };
       }
 
-      const messagePayload = {
-        message: trimmedMessage,
-        fileContent: fileContentBase64, // Send Base64 content
-        filePath: filePath, // Send original file name
-        to: userId.sender,
-      };
-
-      socket.emit('private message', messagePayload);
-
-      // Optimistic update
+      const optimisticId = `optimistic-${Date.now()}`;
       const localMsg: ChatMessage = {
-        sender: adminId || 'me',
+        _id: optimisticId,
+        from: adminId || adminName || 'Admin',
+        sender: adminId || adminName || 'Admin',
         to: userId.sender,
         message: trimmedMessage,
-        timestamp: new Date().toISOString(),
-        filePath: filePath || undefined, // Display file name if present
+        attachment: previewSnap || undefined,
+        attachmentName: fileSnap?.name,
+        createdAt: new Date().toISOString(),
       };
       setUserChats((prev) => [...prev, localMsg]);
 
-      setMessages('');
-      setFilePreview(null);
-      setSelectedFile(null);
-      setFormdataValue(false);
+      socket.emit('private message', {
+        message: trimmedMessage,
+        selectedFile: fileData, // Updated to match previous working payload
+        filePath: fileSnap?.name || null,
+        to: userId.sender,
+        sender: adminId || adminName || 'Admin',
+      });
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId.sender
+            ? {
+                ...u,
+                lastMessage: trimmedMessage || '📎 Attachment',
+                updatedAt: new Date().toISOString(),
+              }
+            : u,
+        ),
+      );
     } catch (error) {
       toast.error('Failed to send message.');
       console.error('Error sending message:', error);
     }
-  }, [message, selectedFile, filePath, userId, adminId]);
+  }, [message, selectedFile, filePreview, userId, adminId, adminName]);
 
-  const handleId = useCallback(
-    (id: string) => {
-      // userId is not a direct dependency for this function's logic
-      const selected = { sender: id };
-      // setUserId updates state, but the callback itself doesn't directly use userId from its closure
-      setUserId(selected);
-      activeUserIdRef.current = id;
-      setFilePreview(null);
-      setSelectedFile(null);
-      setFormdataValue(false); // Reset formdataValue
-      socket.emit('messages', id);
-    },
-    [], // Removed userId from dependencies as it's not directly used in the callback's logic
-  );
+  const handleId = useCallback((id: string) => {
+    const selected = { sender: id };
+    setUserId(selected);
+    activeUserIdRef.current = id;
+    setFilePreview(null);
+    setSelectedFile(null);
+
+    // Reset unread count locally when entering the chat
+    setUsers((prev) =>
+      prev.map((u) => (u.id === id ? { ...u, newMessages: 0 } : u)),
+    );
+
+    socket.emit('messages', id);
+  }, []);
 
   const initSocketConnection = useCallback(() => {
-    // Robust check for credentials (handling null and string "null")
     const storedId = localStorage.getItem('adminID');
     const storedName = localStorage.getItem('adminName');
+    const token = localStorage.getItem('token');
 
     if (
       !storedId ||
@@ -164,28 +182,127 @@ export default function AdminChat() {
     if (currentSocket.connected) currentSocket.disconnect();
 
     const sessionID = localStorage.getItem('sessionID');
-    currentSocket.auth = sessionID
-      ? { sessionID }
-      : { username: storedName, userId: storedId };
+
+    // Connect using auth data: token, name, and userId as per spec
+    currentSocket.auth = {
+      sessionID: sessionID || undefined,
+      token: token || undefined,
+      name: storedName || undefined,
+      userId: storedId || undefined,
+    };
 
     currentSocket.connect();
 
-    currentSocket.on('messages', (data: ChatMessage[]) => setUserChats(data));
+    // After socket connects, frontend emits messageList and getOnlineUsers
+    currentSocket.on('connect', () => {
+      currentSocket.emit('messageList');
+      currentSocket.emit('getOnlineUsers');
+    });
+
+    currentSocket.on('messages', (data: ChatMessage[]) => setUserChats(data)); // This is for initial load of messages for a selected user
 
     currentSocket.on('private message', (data: ChatMessage) => {
       const activeId = activeUserIdRef.current;
-      // Only add message if it's for the currently active chat or from the active user
-      if (activeId && (data.sender === activeId || data.to === storedId)) {
-        setUserChats((prevChats) => {
-          return [...prevChats, data];
+      const myId = localStorage.getItem('adminID');
+      const myName = localStorage.getItem('adminName');
+      const isFromMe =
+        data.from === myId ||
+        data.sender === myId ||
+        data.from === myName ||
+        data.sender === myName;
+      const isFromActive = data.from === activeId || data.sender === activeId;
+
+      if (isFromMe) {
+        // Replace optimistic message with real server message (has real attachment URL)
+        setUserChats((prev) => {
+          const idx = prev.findIndex((m) => {
+            const isOptimistic = m._id?.startsWith('optimistic-');
+            const messagesMatch =
+              (m.message || '').trim() === (data.message || '').trim();
+            const attachmentStatusMatch =
+              !!m.attachmentName === !!(data.attachmentName || data.attachment);
+
+            return isOptimistic && messagesMatch && attachmentStatusMatch;
+          });
+
+          if (idx !== -1) {
+            const updated = [...prev];
+            updated[idx] = {
+              ...data,
+              // Preserve the local file name if server doesn't provide it
+              attachmentName:
+                data.attachmentName || updated[idx].attachmentName,
+            };
+            return updated;
+          }
+
+          // Fallback: If no optimistic match found, prevent duplicate if ID exists, else append
+          if (data._id && prev.some((m) => m._id === data._id)) return prev;
+          return [...prev, data];
         });
+      } else if (activeId && isFromActive) {
+        // Incoming message from the user we're chatting with
+        setUserChats((prevChats) => [...prevChats, data]);
       }
-      // Update new message count for the sender in the user list
+
+      // Update side user list (last message and unread count)
+      const otherPartyId = isFromMe ? data.to : data.from || data.sender;
       setUsers((prevUsers) =>
         prevUsers.map((user) =>
-          user._id === data.sender && user._id !== activeId
-            ? { ...user, newMessages: user.newMessages + 1 }
+          user.id === otherPartyId
+            ? {
+                ...user,
+                lastMessage: data.message || '📎 Attachment',
+                updatedAt: data.createdAt,
+                newMessages:
+                  !isFromMe && user.id !== activeId
+                    ? user.newMessages + 1
+                    : user.id === activeId
+                    ? 0
+                    : user.newMessages,
+              }
             : user,
+        ),
+      );
+    });
+
+    currentSocket.on('messageList', (conversations: ChatUser[]) => {
+      const activeId = activeUserIdRef.current;
+      setUsers(
+        conversations.map((u) =>
+          u.id === activeId ? { ...u, newMessages: 0 } : u,
+        ),
+      );
+    });
+
+    currentSocket.on('getOnlineUsers', (onlineUsers: ChatUser[]) => {
+      setUsers((prev) =>
+        prev.map((u) => ({
+          ...u,
+          isOnline: onlineUsers.some((online) => online.id === u.id),
+        })),
+      );
+    });
+
+    currentSocket.on('typing', ({ from }: { from: string }) => {
+      setUsers((prev) =>
+        prev.map((u) => (u.id === from ? { ...u, typing: true } : u)),
+      );
+
+      // Clear typing indicator after 3 seconds
+      if (typingTimers.current[from]) clearTimeout(typingTimers.current[from]);
+      typingTimers.current[from] = setTimeout(() => {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === from ? { ...u, typing: false } : u)),
+        );
+      }, 3000);
+    });
+
+    currentSocket.on('users', (socketUsers: ChatUser[]) => {
+      const activeId = activeUserIdRef.current;
+      setUsers(
+        socketUsers.map((u) =>
+          u.id === activeId ? { ...u, newMessages: 0 } : u,
         ),
       );
     });
@@ -197,40 +314,30 @@ export default function AdminChat() {
 
     currentSocket.on('connect_error', (err: Error) => {
       console.error('Socket connection error:', err.message);
+
+      // If the token is invalid or expired, clear storage and redirect to login
       if (
-        err.message === 'invalid username' ||
+        err.message === 'invalid token' ||
         err.message === 'Session ID unknown'
       ) {
+        localStorage.clear();
+        window.location.href = '/#/login';
+        return;
+      }
+
+      // Handle other credential issues
+      if (err.message === 'invalid username') {
         localStorage.removeItem('sessionID');
-        // Force update auth with credentials so the next retry attempt succeeds
-        const name = localStorage.getItem('adminName');
-        const id = localStorage.getItem('adminID');
-        if (name && id) {
-          currentSocket.auth = { username: name, userId: id };
-          currentSocket.connect(); // Force reconnection with fresh credentials
-        }
+        currentSocket.disconnect();
+        toast.error('Session expired. Please log in again.');
       }
     });
 
-    currentSocket.on('users', (socketUsers: ChatUser[]) => {
-      // Update the users list, preserving existing newMessages count if user is already known
-      setUsers((prevUsers) => {
-        const updatedUsers = socketUsers.map((socketUser) => {
-          const existingUser = prevUsers.find(
-            (u) => u.userID === socketUser.userID,
-          );
-          return {
-            ...socketUser,
-            newMessages: existingUser ? existingUser.newMessages : 0, // Preserve newMessages count
-            connected: socketUser.connected, // Ensure connected status is updated
-          };
-        });
-        return updatedUsers;
-      });
-    });
-
-    // Return cleanup function
     return () => {
+      Object.values(typingTimers.current).forEach(clearTimeout);
+      currentSocket.off('messageList');
+      currentSocket.off('getOnlineUsers');
+      currentSocket.off('typing');
       currentSocket.off('messages');
       currentSocket.off('private message');
       currentSocket.off('session');
@@ -238,7 +345,7 @@ export default function AdminChat() {
       currentSocket.off('users');
       currentSocket.disconnect();
     };
-  }, []);
+  }, [adminId, adminName]); // Added adminId and adminName as dependencies
 
   useEffect(() => {
     const cleanup = initSocketConnection();
@@ -250,7 +357,7 @@ export default function AdminChat() {
   const groupedMessages = useMemo(() => {
     return userChats.reduce(
       (acc, message) => {
-        const date = dateFormat(message.timestamp, 'd mmmm yyyy');
+        const date = dateFormat(message.createdAt, 'd mmmm yyyy');
         if (!acc[date]) {
           acc[date] = [];
         }
@@ -269,7 +376,7 @@ export default function AdminChat() {
     }
   }, [userChats]);
 
-  const activeUser = users.find((u) => u._id === userId?.sender);
+  const activeUser = users.find((u) => u.id === userId?.sender);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -317,11 +424,11 @@ export default function AdminChat() {
                   <div className="flex items-center gap-1.5 mt-1">
                     <span
                       className={`h-2 w-2 rounded-full ${
-                        activeUser?.connected ? 'bg-success' : 'bg-danger'
+                        activeUser?.isOnline ? 'bg-success' : 'bg-danger'
                       }`}
                     ></span>
                     <span className="text-[10px] text-body font-medium uppercase">
-                      {activeUser?.connected ? 'Online' : 'Offline'}
+                      {activeUser?.isOnline ? 'Online' : 'Offline'}
                     </span>
                   </div>
                 </div>
@@ -340,68 +447,59 @@ export default function AdminChat() {
                         {date}
                       </span>
                     </div>
-                    {groupedMessages[date].map((chat: ChatMessage) => (
-                      <div
-                        key={chat._id || `${chat.sender}-${chat.timestamp}`} // Fallback key for unsent messages
-                        className={`flex ${
-                          // Use currentAdminId for comparison
-                          chat.sender === adminId // Check if the message was sent by the current admin
-                            ? 'justify-end'
-                            : 'justify-start'
-                        }`}
-                      >
-                        {chat.sender !== adminId && ( // Display avatar for received messages
-                          <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold mr-2 flex-shrink-0">
-                            {users
-                              .find((u) => u._id === chat.sender)
-                              ?.name?.charAt(0)
-                              .toUpperCase() || 'U'}
-                          </div>
-                        )}
+                    {groupedMessages[date].map((chat: ChatMessage) => {
+                      // Define messageMatch (isFromMe) here to fix the no-undef error
+                      const isFromMe =
+                        chat.from === adminId ||
+                        chat.sender === adminId ||
+                        chat.from === adminName ||
+                        chat.sender === adminName;
+
+                      return (
                         <div
-                          className={`max-w-[80%] md:max-w-[70%] rounded-2xl px-4 py-2 shadow-sm animate-fade-in-up ${
-                            chat.sender === adminId
-                              ? 'bg-primary text-white rounded-br-none' // Admin's message
-                              : 'bg-gray-2 dark:bg-meta-4 text-black dark:text-white rounded-bl-none' // User's message
+                          key={chat._id || `${chat.from}-${chat.createdAt}`}
+                          className={`flex ${
+                            isFromMe ? 'justify-end' : 'justify-start'
                           }`}
                         >
-                          {chat.attachment ? (
-                            <div className="mb-2 bg-black/10 dark:bg-white/10 rounded-lg p-3 flex flex-col items-center gap-2 border border-white/10">
-                              {chat.attachment.match(
-                                /\.(jpeg|jpg|gif|png)$/i,
-                              ) ? (
-                                <img
-                                  src={`${
-                                    import.meta.env.VITE_API_URL
-                                  }/public/attachments/${chat.attachment}`}
-                                  alt="Attachment"
-                                  className="max-h-40 rounded"
-                                />
-                              ) : (
-                                <FaFileAlt size={32} className="opacity-40" />
-                              )}
-                              <button
-                                className="flex items-center gap-2 text-xs font-bold hover:underline"
-                                onClick={() => handleClick(chat.attachment)}
-                              >
-                                {chat.filePath || 'View Attachment'}
-                                {chat.attachment.endsWith('.pdf') ? (
-                                  <AiOutlineFilePdf size={14} />
-                                ) : (
-                                  <FaFileAlt size={14} />
-                                )}
-                              </button>
+                          {!isFromMe && ( // Display avatar for received messages
+                            <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold mr-2 flex-shrink-0">
+                              {users
+                                .find(
+                                  (u) =>
+                                    u.id === chat.from || u.id === chat.sender,
+                                )
+                                ?.name?.charAt(0)
+                                .toUpperCase() || 'U'}
                             </div>
-                          ) : null}
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                            {chat.message}
-                          </p>
-                          <p className="text-[10px] mt-1 text-right opacity-70">
-                            {dateFormat(chat.timestamp, 'h:MM TT')}
-                          </p>
+                          )}
+                          <div
+                            className={`max-w-[80%] md:max-w-[70%] rounded-2xl px-4 py-2 shadow-sm animate-fade-in-up ${
+                              isFromMe
+                                ? 'bg-primary text-white rounded-br-none'
+                                : 'bg-gray-2 dark:bg-meta-4 text-black dark:text-white rounded-bl-none'
+                            }`}
+                          >
+                            {chat.attachment ? (
+                              <AttachmentBubble // Using the new AttachmentBubble component
+                                url={chat.attachment}
+                                fileName={chat.attachmentName}
+                                isSender={isFromMe}
+                                isOptimistic={chat._id?.startsWith(
+                                  'optimistic-',
+                                )}
+                              />
+                            ) : null}
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                              {chat.message}
+                            </p>
+                            <p className="text-[10px] mt-1 text-right opacity-70">
+                              {dateFormat(chat.createdAt, 'h:MM TT')}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ))}
               </div>
@@ -415,61 +513,34 @@ export default function AdminChat() {
                 </p>
               </div>
             )}
-
-            {filePreview && (
-              <div className="absolute bottom-24 lg:bottom-20 left-4 right-4 bg-gray-2 dark:bg-meta-4 rounded-lg p-4 z-10 border border-stroke dark:border-strokedark shadow-lg">
-                <button
-                  className="absolute right-2 top-2 text-black dark:text-white"
-                  onClick={() => {
-                    setFilePreview(null);
-                    setSelectedFile(null);
-                  }}
-                >
-                  <IoClose className="" size={30} />
-                </button>
-                <div className="flex h-32 lg:h-40 justify-center items-center overflow-hidden">
-                  {selectedFile?.type?.startsWith('image/') ? (
-                    <div className="flex flex-col gap-y-1 items-center">
-                      {' '}
-                      {/* Reduced gap-y */}
-                      <p className="text-black dark:text-white">
-                        {selectedFile.name}
-                      </p>
-                      <img src={filePreview} alt="Preview" className="h-40" />
-                    </div>
-                  ) : selectedFile?.type === 'application/pdf' ? (
-                    <div className="flex flex-col gap-y-1 items-center">
-                      {' '}
-                      {/* Reduced gap-y */}
-                      <p className="text-black dark:text-white">
-                        {selectedFile.name}
-                      </p>
-                      <AiOutlineFilePdf size={60} />
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-y-1 items-center">
-                      {' '}
-                      {/* Reduced gap-y */}
-                      <p className="text-black dark:text-white">
-                        {selectedFile.name}
-                      </p>
-                      <FaFileAlt size={60} />
-                    </div>
-                  )}
-                </div>
+            {activeUser?.typing && (
+              <div className="px-4 py-2 text-xs italic text-bodydark2 animate-pulse">
+                {activeUser.name} is typing...
               </div>
+            )}
+
+            {filePreview && selectedFile && (
+              <AttachmentTray // Using the new AttachmentTray component
+                file={selectedFile}
+                preview={filePreview}
+                onRemove={() => {
+                  setFilePreview(null);
+                  setSelectedFile(null);
+                }}
+              />
             )}
             <div className="p-4 border-t border-stroke dark:border-strokedark bg-white dark:bg-boxdark">
               <div className="flex items-end gap-3 bg-gray-2 dark:bg-meta-4/10 p-2 rounded-2xl focus-within:ring-2 focus-within:ring-primary/20 transition-all">
                 <span className="flex-shrink-0">
                   <label
-                    htmlFor="file-upload"
+                    htmlFor="file-upload-admin"
                     className="cursor-pointer p-2 hover:bg-white dark:hover:bg-boxdark rounded-full block transition-all"
                   >
                     <IoIosAttach size={24} />
                   </label>
                   <input
-                    id="file-upload"
+                    ref={fileInputRef}
+                    id="file-upload-admin"
                     type="file"
                     name="attachment"
                     style={{ display: 'none' }}
@@ -489,12 +560,12 @@ export default function AdminChat() {
 
                 <button
                   className={`flex items-center gap-2 rounded-lg bg-primary py-3 px-6 font-medium text-white hover:bg-opacity-90 transition-all ${
-                    !message.trim() && !formdataValue
+                    !message.trim() && !selectedFile
                       ? 'opacity-50 cursor-not-allowed'
                       : 'active:scale-95'
                   }`}
                   onClick={handleSubmitMessage}
-                  disabled={!message.trim() && !formdataValue}
+                  disabled={!message.trim() && !selectedFile}
                 >
                   <span className="hidden sm:inline">Send</span>
                   <BsFillSendFill />

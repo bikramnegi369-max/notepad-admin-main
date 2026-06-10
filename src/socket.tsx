@@ -2,7 +2,13 @@ import { io, Socket } from 'socket.io-client';
 
 // Define custom properties for the Socket instance
 export interface CustomSocket extends Socket {
-  auth?: { sessionID?: string; username?: string; userId?: string };
+  auth?: {
+    sessionID?: string;
+    username?: string;
+    name?: string;
+    userId?: string;
+    token?: string;
+  };
   userID?: string;
 }
 
