@@ -122,47 +122,43 @@ const AdminConversations: React.FC = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Ref to track search term changes to prevent stale page fetches and race conditions
+  const lastSearchRef = useRef(debouncedSearch);
+
   // Fetch Conversations List
   const fetchConversations = useCallback(async (pageNum: number, q: string) => {
     setLoadingList(true);
+    setError(null);
     try {
       const response = await apiUrl.get<ConversationsResponse>(
         `/admin/conversation?page=${pageNum}&limit=20&search=${q}`,
       );
+
+      // Guard: If the search term has changed since this request started, ignore it
+      if (q !== lastSearchRef.current) return;
+
       if (response.data.success) {
-        const fetched = response.data.data.conversations || [];
-        setConversations((prev) =>
-          pageNum === 1 ? fetched : [...prev, ...fetched],
-        );
+        let fetched = response.data.data.conversations || [];
+
+        // Enforce search filtering on the client side for guaranteed correctness
+        if (q.trim()) {
+          const term = q.toLowerCase();
+          fetched = fetched.filter(conv => 
+            conv.conversationName.toLowerCase().includes(term)
+          );
+        }
+
+        setConversations((prev) => {
+          const combined = pageNum === 1 ? fetched : [...prev, ...fetched];
+          // Deduplicate by conversationId to prevent corruption if server pagination overlaps
+          return combined.filter((item, index, self) =>
+            index === self.findIndex((t) => t.conversationId === item.conversationId)
+          );
+        });
         setPagination(response.data.data.pagination);
       }
     } catch (err: any) {
-      // Fallback for demonstration if API isn't ready
-      if (import.meta.env.DEV) {
-        setConversations([
-          {
-            conversationId: '6a265eaff23581bdaab4faf3',
-            conversationName: 'Admin ↔ kush',
-            participants: [
-              { userId: '1', name: 'Admin' },
-              { userId: '2', name: 'kush' },
-            ],
-            participantCount: 2,
-            messageCount: 50,
-            lastMessage: {
-              messageId: '1',
-              message: 'hi',
-              senderId: '2',
-              senderName: 'kush',
-              timestamp: new Date().toISOString(),
-              attachment: null,
-            },
-            createdAt: '',
-            updatedAt: '',
-          },
-        ]);
-      }
-      setError(err.message || 'Failed to fetch conversations');
+      setError(err.response?.data?.message || err.message || 'Failed to fetch conversations');
     } finally {
       setLoadingList(false);
     }
@@ -219,14 +215,19 @@ const AdminConversations: React.FC = () => {
   };
 
   useEffect(() => {
+    // When the search term changes, we MUST reset pagination and clear results
+    if (lastSearchRef.current !== debouncedSearch) {
+      lastSearchRef.current = debouncedSearch;
+      setConversations([]); 
+      setPagination(null);   // Stop infinite scroll until new results for page 1 arrive
+      if (page !== 1) {
+        setPage(1);
+        return; // The next effect cycle (triggered by setPage(1)) will perform the fetch
+      }
+    }
+
     fetchConversations(page, debouncedSearch);
   }, [page, debouncedSearch, fetchConversations]);
-
-  // Reset list and page on search change
-  useEffect(() => {
-    setPage(1);
-    setConversations([]);
-  }, [debouncedSearch]);
 
   useEffect(() => {
     if (selectedId) fetchMessages(selectedId, messagePage);
@@ -331,16 +332,19 @@ const AdminConversations: React.FC = () => {
                       <span
                         className={`text-[10px] whitespace-nowrap ${
                           selectedId === conv.conversationId
-                            ? 'text-white/70'
+                            ? 'text-primary/80'
                             : 'text-bodydark2'
                         }`}
                       >
-                        {dateFormat(
-                          conv.lastMessage?.timestamp || conv.updatedAt,
-                          'h:MM TT',
-                        )}
+                        {(conv.lastMessage?.timestamp || conv.updatedAt) ? 
+                          dateFormat(conv.lastMessage?.timestamp || conv.updatedAt, 'h:MM TT') 
+                          : ''
+                        }
                       </span>
                     </div>
+                    <p className="text-xs text-bodydark truncate">
+                      {conv.lastMessage?.message || 'No messages yet'}
+                    </p>
                   </div>
                 </button>
               ))
