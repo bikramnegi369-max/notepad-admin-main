@@ -13,6 +13,7 @@ import BackupData from './pages/Backup.tsx';
 import BlockIP from './pages/BlockIP.tsx';
 import Chat from './components/Chat/Chat.tsx';
 import AdminChat from './components/Chat/AdminChat.tsx';
+import AdminConversations from './components/Chat/AdminConversations.tsx';
 function App() {
   const [loading, setLoading] = useState<boolean>(true);
   const { pathname } = useLocation();
@@ -88,6 +89,15 @@ function App() {
             <>
               <PageTitle title="Admin Chat | Notepad - Manage User, See Chats and Toggle Security " />
               <AdminChat />
+            </>
+          }
+        />
+        <Route
+          path="/conversations"
+          element={
+            <>
+              <PageTitle title="Conversations | Notepad Admin" />
+              <AdminConversations />
             </>
           }
         />

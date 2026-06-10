@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import SidebarLinkGroup from './SidebarLinkGroup';
 import { AiOutlineUserAdd } from 'react-icons/ai';
 import { PiUserListLight } from 'react-icons/pi';
 import { LuClipboardList } from 'react-icons/lu';
 import { SiBackendless } from 'react-icons/si';
 import { MdBlock } from 'react-icons/md';
+import { HiOutlineChatAlt2 } from 'react-icons/hi';
 import LogoIcon from '../../images/logo/logo.png';
 
 const Sidebar = ({
@@ -244,6 +244,18 @@ const Sidebar = ({
                 >
                   <PiUserListLight />
                   Chat
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="/conversations"
+                  className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
+                    pathname.includes('conversations') &&
+                    'bg-graydark dark:bg-meta-4'
+                  }`}
+                >
+                  <HiOutlineChatAlt2 size={18} />
+                  Conversations
                 </NavLink>
               </li>
               <li>
