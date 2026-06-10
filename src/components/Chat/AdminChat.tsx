@@ -149,6 +149,7 @@ export default function AdminChat() {
     const selected = { sender: id };
     setUserId(selected);
     activeUserIdRef.current = id;
+    localStorage.setItem('activeChatUserId', id);
     setFilePreview(null);
     setSelectedFile(null);
 
@@ -199,9 +200,9 @@ export default function AdminChat() {
       currentSocket.emit('getOnlineUsers');
     });
 
-    currentSocket.on('messages', (data: ChatMessage[]) => setUserChats(data)); // This is for initial load of messages for a selected user
+    const onMessages = (data: ChatMessage[]) => setUserChats(data);
 
-    currentSocket.on('private message', (data: ChatMessage) => {
+    const onPrivateMessage = (data: ChatMessage) => {
       const activeId = activeUserIdRef.current;
       const myId = localStorage.getItem('adminID');
       const myName = localStorage.getItem('adminName');
@@ -243,6 +244,8 @@ export default function AdminChat() {
       } else if (activeId && isFromActive) {
         // Incoming message from the user we're chatting with
         setUserChats((prevChats) => [...prevChats, data]);
+        // Tell server this message is read immediately to sync global count
+        socket.emit('messages', activeId);
       }
 
       // Update side user list (last message and unread count)
@@ -264,27 +267,27 @@ export default function AdminChat() {
             : user,
         ),
       );
-    });
+    };
 
-    currentSocket.on('messageList', (conversations: ChatUser[]) => {
+    const onMessageList = (conversations: ChatUser[]) => {
       const activeId = activeUserIdRef.current;
       setUsers(
         conversations.map((u) =>
           u.id === activeId ? { ...u, newMessages: 0 } : u,
         ),
       );
-    });
+    };
 
-    currentSocket.on('getOnlineUsers', (onlineUsers: ChatUser[]) => {
+    const onOnlineUsers = (onlineUsers: ChatUser[]) => {
       setUsers((prev) =>
         prev.map((u) => ({
           ...u,
           isOnline: onlineUsers.some((online) => online.id === u.id),
         })),
       );
-    });
+    };
 
-    currentSocket.on('typing', ({ from }: { from: string }) => {
+    const onTyping = ({ from }: { from: string }) => {
       setUsers((prev) =>
         prev.map((u) => (u.id === from ? { ...u, typing: true } : u)),
       );
@@ -296,23 +299,23 @@ export default function AdminChat() {
           prev.map((u) => (u.id === from ? { ...u, typing: false } : u)),
         );
       }, 3000);
-    });
+    };
 
-    currentSocket.on('users', (socketUsers: ChatUser[]) => {
+    const onUsers = (socketUsers: ChatUser[]) => {
       const activeId = activeUserIdRef.current;
       setUsers(
         socketUsers.map((u) =>
           u.id === activeId ? { ...u, newMessages: 0 } : u,
         ),
       );
-    });
+    };
 
-    currentSocket.on('session', ({ sessionID, userID }) => {
+    const onSession = ({ sessionID }: { sessionID: string }) => {
       currentSocket.auth = { sessionID };
       localStorage.setItem('sessionID', sessionID);
-    });
+    };
 
-    currentSocket.on('connect_error', (err: Error) => {
+    const onConnectError = (err: Error) => {
       console.error('Socket connection error:', err.message);
 
       // If the token is invalid or expired, clear storage and redirect to login
@@ -331,19 +334,30 @@ export default function AdminChat() {
         currentSocket.disconnect();
         toast.error('Session expired. Please log in again.');
       }
-    });
+    };
+
+    // Attach listeners
+    currentSocket.on('messages', onMessages);
+    currentSocket.on('private message', onPrivateMessage);
+    currentSocket.on('messageList', onMessageList);
+    currentSocket.on('getOnlineUsers', onOnlineUsers);
+    currentSocket.on('typing', onTyping);
+    currentSocket.on('users', onUsers);
+    currentSocket.on('session', onSession);
+    currentSocket.on('connect_error', onConnectError);
 
     return () => {
       Object.values(typingTimers.current).forEach(clearTimeout);
-      currentSocket.off('messageList');
-      currentSocket.off('getOnlineUsers');
-      currentSocket.off('typing');
-      currentSocket.off('messages');
-      currentSocket.off('private message');
-      currentSocket.off('session');
-      currentSocket.off('connect_error');
-      currentSocket.off('users');
-      currentSocket.disconnect();
+      localStorage.removeItem('activeChatUserId');
+      // Remove specific listeners only
+      currentSocket.off('messages', onMessages);
+      currentSocket.off('private message', onPrivateMessage);
+      currentSocket.off('messageList', onMessageList);
+      currentSocket.off('getOnlineUsers', onOnlineUsers);
+      currentSocket.off('typing', onTyping);
+      currentSocket.off('users', onUsers);
+      currentSocket.off('session', onSession);
+      currentSocket.off('connect_error', onConnectError);
     };
   }, [adminId, adminName]); // Added adminId and adminName as dependencies
 

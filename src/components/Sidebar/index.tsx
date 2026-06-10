@@ -26,6 +26,23 @@ const Sidebar = ({
     storedSidebarExpanded === null ? false : storedSidebarExpanded === 'true',
   );
 
+  // Unread messages state
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const updateCount = () => {
+      const count = parseInt(localStorage.getItem('totalUnread') || '0');
+      setUnreadCount(count);
+    };
+    window.addEventListener('unread-count-update', updateCount);
+    window.addEventListener('storage', updateCount); // Sync across tabs
+    updateCount();
+    return () => {
+      window.removeEventListener('unread-count-update', updateCount);
+      window.removeEventListener('storage', updateCount);
+    };
+  }, []);
+
   // close on click outside
   useEffect(() => {
     const clickHandler = ({ target }: { target: any }) => {
@@ -244,6 +261,11 @@ const Sidebar = ({
                 >
                   <PiUserListLight />
                   Chat
+                  {unreadCount > 0 && (
+                    <span className="ml-auto inline-flex items-center justify-center rounded-full bg-danger px-2 py-0.5 text-[10px] font-bold text-white shadow-sm animate-pulse">
+                      {unreadCount}
+                    </span>
+                  )}
                 </NavLink>
               </li>
               <li>
