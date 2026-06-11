@@ -35,7 +35,7 @@ export default function User({ handleId, userId, users }: UserProps) {
             }`}
           >
             <div
-              className={`h-10 w-10 flex-shrink-0 rounded-full flex items-center justify-center text-sm font-bold ${
+              className={`h-10 w-10 relative flex-shrink-0 rounded-full flex items-center justify-center text-sm font-bold ${
                 userId === e?.id
                   ? 'bg-white text-primary'
                   : 'bg-primary text-white'
