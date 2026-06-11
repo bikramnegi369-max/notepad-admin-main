@@ -42,9 +42,7 @@ function App() {
 
   // Global Notification Logic
   const notificationSound = useMemo(() => {
-    const audio = new Audio(
-      'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3',
-    );
+    const audio = new Audio('/notification.mp3');
     audio.load();
     return audio;
   }, []);
